@@ -18,6 +18,10 @@ import android.widget.TextView;
 
 import androidx.core.graphics.drawable.DrawableCompat;
 
+import com.jjoe64.graphview.GraphView;
+import com.jjoe64.graphview.helper.StaticLabelsFormatter;
+import com.jjoe64.graphview.series.DataPoint;
+import com.jjoe64.graphview.series.LineGraphSeries;
 import com.mbientlab.metawear.AsyncDataProducer;
 import com.mbientlab.metawear.Data;
 import com.mbientlab.metawear.DataProducer;
@@ -32,8 +36,10 @@ import com.mbientlab.metawear.builder.RouteComponent;
 import com.mbientlab.metawear.builder.function.Function2;
 import com.mbientlab.metawear.data.Acceleration;
 import com.mbientlab.metawear.data.CartesianAxis;
+import com.mbientlab.metawear.data.EulerAngles;
 import com.mbientlab.metawear.data.Quaternion;
 import com.mbientlab.metawear.module.Accelerometer;
+import com.mbientlab.metawear.module.Gyro;
 import com.mbientlab.metawear.module.Led;
 import com.mbientlab.metawear.module.SensorFusionBosch;
 
@@ -81,7 +87,21 @@ public class MainActivity extends Activity implements ServiceConnection {
     private Color buttonDefaultColor;
 
     private TextView datadisplay;
+    private GraphView graph1;
+    private GraphView graph2;
+    private GraphView graph3;
 
+    LineGraphSeries<DataPoint> series1;
+    int seriesSize1 = 0;
+    int maxX = 1000;
+
+    LineGraphSeries<DataPoint> series2;
+    int seriesSize2 = 0;
+
+    LineGraphSeries<DataPoint> series3;
+    int seriesSize3 = 0;
+
+    SensorFusionBosch sensorFusion;
     Accelerometer  accelerometer;
 
     Runnable updater;
@@ -91,34 +111,7 @@ public class MainActivity extends Activity implements ServiceConnection {
 
    // private SensorFusionBosch sensorFusion;
 
-    void updateTime() {
-        datadisplay = findViewById(R.id.datadisplay);
-        final Handler timerHandler = new Handler();
 
-        updater = () -> {
-
-            int index = xData.size()-1;
-           // index = Math.min(index, yData.size()-1);
-           // index = Math.min(index, zData.size()-1);
-            if (index > 0){
-                datadisplay.setText("x: " + df.format(xData.get(index)) + " \n");
-                datadisplay.append("y: " + df.format(yData.get(index)) + " \n");
-                datadisplay.append("z: " + df.format(zData.get(index)));
-            }
-            /*
-            String varib = dataAsStrings.get(dataAsStrings.size()-1);
-            String[] parts = varib.split(",");
-
-             */
-           // Log.i("help", "x size: " + String.valueOf(xData.size()) + " y size " + String.valueOf(yData.size()) + " z size " + String.valueOf(zData.size()));
-
-
-            if (runUpdater){
-                timerHandler.postDelayed(updater,300);
-            }
-        };
-        timerHandler.post(updater);
-    }
 
 
 
@@ -147,9 +140,55 @@ public class MainActivity extends Activity implements ServiceConnection {
         changeButtonByState(0, startDataStreamButton);
 
         addListeners();
-      // updateTime();
+
+        initiateGraphs();
 
 
+        /*
+        StaticLabelsFormatter staticLabelsFormatter = new StaticLabelsFormatter(graph);
+        staticLabelsFormatter.setHorizontalLabels(new String[] {"old", "middle", "new"});
+        staticLabelsFormatter.setVerticalLabels(new String[] {"low", "middle", "high"});
+        graph.getGridLabelRenderer().setLabelFormatter(staticLabelsFormatter);
+
+
+         */
+
+    }
+
+    void initiateGraphs(){
+        graph1 = findViewById(R.id.graphview);
+        series1 = new LineGraphSeries<>();
+        graph1.addSeries(series1);
+        graph1.getViewport().setXAxisBoundsManual(true);
+        graph1.getViewport().setYAxisBoundsManual(true);
+        graph1.getViewport().setMinX(0);
+        graph1.getViewport().setMaxX(maxX);
+        graph1.getViewport().setMinY(-7);
+        graph1.getViewport().setMaxY(7);
+        graph1.setTitle("X-data");
+
+
+        graph2 = findViewById(R.id.graphview2);
+        series2 = new LineGraphSeries<>();
+        graph2.addSeries(series2);
+        graph2.getViewport().setXAxisBoundsManual(true);
+        graph2.getViewport().setYAxisBoundsManual(true);
+        graph2.getViewport().setMinX(0);
+        graph2.getViewport().setMaxX(maxX);
+        graph2.getViewport().setMinY(-7);
+        graph2.getViewport().setMaxY(7);
+        graph2.setTitle("Y-data");
+
+        graph3 = findViewById(R.id.graphview3);
+        series3 = new LineGraphSeries<>();
+        graph3.addSeries(series3);
+        graph3.getViewport().setXAxisBoundsManual(true);
+        graph3.getViewport().setYAxisBoundsManual(true);
+        graph3.getViewport().setMinX(0);
+        graph3.getViewport().setMaxX(maxX);
+        graph3.getViewport().setMinY(-7);
+        graph3.getViewport().setMaxY(7);
+        graph3.setTitle("Z-data");
     }
 
     void addListeners(){
@@ -266,8 +305,10 @@ public class MainActivity extends Activity implements ServiceConnection {
 
         } else {
             stopAccelometerStream();
+            stopSensorFusionStream();
             calibratingCurrently = true;
-            startColletingCalibrationData();
+            streamingData = true;
+            startColletingCalibrationDataLinearAcceleration();
 
         }
     }
@@ -292,6 +333,23 @@ public class MainActivity extends Activity implements ServiceConnection {
                 shutDown();
             }
         }
+    }
+
+    void stopSensorFusionStream(){
+        if (sensorFusion != null){
+            if (sensorFusion.linearAcceleration() != null){
+                sensorFusion.linearAcceleration().stop();
+            }
+            sensorFusion.stop();
+        }
+        if (board != null){
+            board.tearDown();
+        }
+      //  changeButtonByState(1,startDataStreamButton,"Start data stream");
+        runUpdater = false;
+        streamingData = false;
+        connectingCurrently = false;
+        calibratingCurrently = false;
     }
 
     void stopAccelometerStream(){
@@ -324,11 +382,34 @@ public class MainActivity extends Activity implements ServiceConnection {
                  */
                 startLinearMotionStream();
             } else {
-                stopAccelometerStream();
-                setStatusText("Connected to "+ board.getModel().toString());
+              //  stopAccelometerStream();
+                stopSensorFusionStream();
+                changeButtonByState(1,startDataStreamButton,"Start data stream");
+                if (board.isConnected()) setStatusText("Connected to "+ board.getModel().toString());
+                else
+                    setStatusText("Disconnected");
+               // plotData();
+
             }
         }
     }
+
+    int plotData(LineGraphSeries<DataPoint> series, int seriesSize, List<Float> dataArray){
+
+        int size = dataArray.size();
+        float y;
+
+        for (int i = seriesSize; i < size; i++){
+            y = dataArray.get(i);
+            series.appendData(new DataPoint(i, y), true, size);
+        }
+        return size;
+
+      //  graph.getViewport().setMaxX(maxX);
+
+    }
+
+
 
     public void shutDown(){
         if (accelerometer != null){
@@ -414,7 +495,7 @@ public class MainActivity extends Activity implements ServiceConnection {
         serviceBinder = (BtleService.LocalBinder) service;
         retrieveBoard();
         bindSuccesful = true;
-        setStatusText("Board found, not connected");
+        setStatusText("Disconnected");
        // connectDevice();
     }
 
@@ -437,8 +518,22 @@ public class MainActivity extends Activity implements ServiceConnection {
         streamingData = true;
         changeButtonByState(2,startDataStreamButton,"Stop data stream");
         setStatusText("Stream linear motion data");
-        final SensorFusionBosch sensorFusion = board.getModule(SensorFusionBosch.class);
-        Log.i("juttu",sensorFusion.linearAcceleration().toString());
+        if (sensorFusion == null)  sensorFusion = board.getModule(SensorFusionBosch.class);
+
+        /*
+     //   Log.i("juttu",sensorFusion.linearAcceleration().toString());
+        if ((accelerometer = board.getModule(Accelerometer.class)) != null) {
+            Log.i("BlueActivity", "Accelerometer found");
+            Log.i("BlueActivity", "Accelerometer range " + accelerometer.getRange());
+            accelerometer.start();
+        }
+        Gyro gyro;
+        if((gyro = board.getModule(Gyro.class)) != null){
+            gyro.start();
+        }
+
+         */
+
 
         sensorFusion.configure()
                 .mode(SensorFusionBosch.Mode.NDOF)
@@ -446,8 +541,11 @@ public class MainActivity extends Activity implements ServiceConnection {
                 .gyroRange(SensorFusionBosch.GyroRange.GR_2000DPS)
                 .commit();
 
+
+
        // AsyncDataProducer producer = sensorFusion.correctedAcceleration();
         AsyncDataProducer producer = sensorFusion.linearAcceleration();
+        AsyncDataProducer eulerproducer = sensorFusion.eulerAngles();
 
         producer.addRouteAsync(new RouteBuilder() {
             @Override
@@ -456,10 +554,13 @@ public class MainActivity extends Activity implements ServiceConnection {
                     @Override
                     public void apply(Data data, Object... env) {
                         Acceleration acc = (Acceleration) data.value(data.types()[0]);
+
                        // Log.i("Linear motion", "x: " + acc.x() + " y: " + acc.y() + " z: " + acc.z());
-                        xData.add(acc.x());
-                        yData.add(acc.y());
-                        zData.add(acc.z());
+                        xData.add(acc.x() - accelometer_offsetX);
+                        yData.add(acc.y() - accelometer_offsetY);
+                        zData.add(acc.z() - accelometer_offsetZ);
+                      //  int xAmount = xData.size();
+                      //  series.appendData(new DataPoint(xAmount, xData.get(xAmount-1)), true, xAmount);
                     }
                 });
             }
@@ -467,6 +568,51 @@ public class MainActivity extends Activity implements ServiceConnection {
             @Override
             public Void then(Task<Route> task) throws Exception {
                 producer.start();
+                sensorFusion.start();
+                return null;
+            }
+        });
+
+        eulerproducer.addRouteAsync(new RouteBuilder() {
+            @Override
+            public void configure(RouteComponent source) {
+                source.stream(new Subscriber() {
+                    @Override
+                    public void apply(Data data, Object... env) {
+                        EulerAngles angles = (EulerAngles) data.value(data.types()[0]);
+                        Log.i("Heading",angles.heading()+"");
+                        Log.i("pitch",angles.pitch()+"");
+                        Log.i("roll",angles.roll()+"");
+                        Log.i("yaw",angles.yaw()+"");
+
+                        //  int xAmount = xData.size();
+                        //  series.appendData(new DataPoint(xAmount, xData.get(xAmount-1)), true, xAmount);
+                    }
+                });
+            }
+        }).continueWith(new Continuation<Route, Void>() {
+            @Override
+            public Void then(Task<Route> task) throws Exception {
+            //    eulerproducer.start();
+             //   sensorFusion.start();
+                return null;
+            }
+        });
+
+        sensorFusion.quaternion().addRouteAsync(new RouteBuilder() {
+            @Override
+            public void configure(RouteComponent source) {
+                source.stream(new Subscriber() {
+                    @Override
+                    public void apply(Data data, Object... env) {
+                        Log.i("MainActivity", "Quaternion = " + data.value(Quaternion.class));
+                    }
+                });
+            }
+        }).continueWith(new Continuation<Route, Void>() {
+            @Override
+            public Void then(Task<Route> task) throws Exception {
+                sensorFusion.quaternion().start();
                 sensorFusion.start();
                 return null;
             }
@@ -502,6 +648,81 @@ public class MainActivity extends Activity implements ServiceConnection {
         });
          */
 
+    }
+
+    void startColletingCalibrationDataLinearAcceleration() {
+        runUpdater = false;
+        streamingData = true;
+        changeButtonByState(2,calibrationButton);
+        setStatusText("Calibrating SensorFusion. Don't move the sensor.");
+        accelometer_offSetDataSet.clear();
+        xData.clear();
+        yData.clear();
+        zData.clear();
+        calibratingCurrently = true;
+        final int[] waitingRunner = {0};
+
+        if (sensorFusion == null)  sensorFusion = board.getModule(SensorFusionBosch.class);
+
+        sensorFusion.configure()
+                .mode(SensorFusionBosch.Mode.NDOF)
+                .accRange(SensorFusionBosch.AccRange.AR_16G)
+                .gyroRange(SensorFusionBosch.GyroRange.GR_2000DPS)
+                .commit();
+
+        AsyncDataProducer producer = sensorFusion.linearAcceleration();
+
+        producer.addRouteAsync(new RouteBuilder() {
+            @Override
+            public void configure(RouteComponent source) {
+                source.stream(new Subscriber() {
+
+                    @Override
+                    public void apply(Data data, Object... env) {
+                        if (waitingRunner[0] > 1000) {
+
+
+                            Acceleration acc = (Acceleration) data.value(data.types()[0]);
+                            Float x = acc.x();
+                            Float y = acc.y();
+                            Float z = acc.z();
+                            List<Float> values = new ArrayList<>();
+
+                            values.add(x);
+                            values.add(y);
+                            values.add(z);
+
+                            accelometer_offSetDataSet.add(values);
+                            if (accelometer_offSetDataSet.size() > 999) {
+                                stopCollectingCalibrationDataLinearAcceleration();
+                            }
+                        }
+                        waitingRunner[0]++;
+
+                        //
+
+                    }
+                });
+            }
+        }).continueWith(new Continuation<Route, Void>() {
+            @Override
+            public Void then(Task<Route> task) throws Exception {
+                producer.start();
+                sensorFusion.start();
+                return null;
+            }
+        });
+    }
+
+    void stopCollectingCalibrationDataLinearAcceleration(){
+        stopSensorFusionStream();
+
+        calculateAccelerometerOffsets();
+        changeButtonByState(1, calibrationButton);
+        setStatusText("Calibrated SensorFusion data. Connected to " +board.getModel().toString());
+        datadisplay.setText("x offset: "+accelometer_offsetX);
+        datadisplay.append("\ny offset: " + accelometer_offsetY);
+        datadisplay.append("\nz offset: " + accelometer_offsetZ);
     }
 
     void startAccelerationDataStreamWithOffset(){
@@ -800,7 +1021,37 @@ public class MainActivity extends Activity implements ServiceConnection {
 
     }
 
+    void updateTime() {
+        datadisplay = findViewById(R.id.datadisplay);
+        final Handler timerHandler = new Handler();
 
+        updater = () -> {
+
+            int index = xData.size()-1;
+            // index = Math.min(index, yData.size()-1);
+            // index = Math.min(index, zData.size()-1);
+            if (index > 0){
+                datadisplay.setText("x: " + df.format(xData.get(index)) + " \n");
+                datadisplay.append("y: " + df.format(yData.get(index)) + " \n");
+                datadisplay.append("z: " + df.format(zData.get(index)));
+                seriesSize1 = plotData(series1, seriesSize1, xData);
+                seriesSize2 = plotData(series2, seriesSize2, yData);
+                seriesSize3 = plotData(series3, seriesSize3, zData);
+            }
+            /*
+            String varib = dataAsStrings.get(dataAsStrings.size()-1);
+            String[] parts = varib.split(",");
+
+             */
+            // Log.i("help", "x size: " + String.valueOf(xData.size()) + " y size " + String.valueOf(yData.size()) + " z size " + String.valueOf(zData.size()));
+
+
+            if (runUpdater){
+                timerHandler.postDelayed(updater,300);
+            }
+        };
+        timerHandler.post(updater);
+    }
 
 
 
