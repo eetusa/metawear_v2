@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/white"
     tools:context=".MainActivity">
 
     <TextView
@@ -13,6 +14,7 @@
         android:layout_marginLeft="10dp"
         android:layout_marginRight="10dp"
         android:text="Data display"
+        android:textColor="#C8C8C8"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintLeft_toLeftOf="parent"
@@ -51,159 +53,152 @@
         android:layout_marginTop="16dp"
         android:layout_marginEnd="10dp"
         android:text="Status: board not found, not connected"
+        android:textColor="#595959"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.09"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <ScrollView
-        android:id="@+id/contentScroller"
-        android:layout_width="409dp"
+
+    <TableLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
+        android:padding="10dp"
+        android:stretchColumns="*"
+
+        app:layout_constraintBottom_toTopOf="@+id/start_datastream_button"
         app:layout_constraintTop_toBottomOf="@+id/datadisplay"
-        tools:ignore="SpeakableTextPresentCheck">
+        app:layout_constraintVertical_bias="0.0">
 
-        <TableLayout
+        <TableRow
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:stretchColumns="*"
-            >
+            android:layout_height="match_parent">
 
-            <TableRow
+            <TextView
+                android:id="@+id/ActivityLabel"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_marginLeft="10dp"
-                android:layout_marginRight="10dp">
+                android:layout_height="wrap_content"
+                android:background="#d1d0cf"
+                android:padding="8dip"
+                android:text="@string/activityLabel"
+                android:textColor="#000"
+                android:textSize="14dp" />
 
-                <TextView
-                    android:id="@+id/ActivityLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#d1d0cf"
-                    android:padding="8dip"
-                    android:text="@string/activityLabel"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
-
-                <TextView
-                    android:id="@+id/ActivityValue"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#f5eceb"
-                    android:padding="8dip"
-                    android:text="@string/activityValue"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
-
-            </TableRow>
-
-            <TableRow
+            <TextView
+                android:id="@+id/ActivityValue"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_marginLeft="10dp"
-                android:layout_marginRight="10dp">
-                <TextView
-                    android:id="@+id/CountLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#d1d0cf"
-                    android:padding="8dip"
-                    android:text="@string/countLabel"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
+                android:layout_height="wrap_content"
+                android:background="#f5eceb"
+                android:padding="8dip"
+                android:text="@string/activityValue"
+                android:textColor="#000"
+                android:textSize="14dp" />
 
-                <TextView
-                    android:id="@+id/CountValue"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#f5eceb"
-                    android:padding="8dip"
-                    android:text="@string/countValue"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
-            </TableRow>
+        </TableRow>
 
+        <TableRow
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
 
-
-            <TableRow
+            <TextView
+                android:id="@+id/CountLabel"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_marginLeft="10dp"
-                android:layout_marginRight="10dp">
-                <TextView
-                    android:id="@+id/SuccessLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#d1d0cf"
-                    android:padding="8dip"
-                    android:text="@string/successLabel"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
+                android:layout_height="wrap_content"
+                android:background="#d1d0cf"
+                android:padding="8dip"
+                android:text="@string/countLabel"
+                android:textColor="#000"
+                android:textSize="14dp" />
 
-                <TextView
-                    android:id="@+id/SuccessValue"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#f5eceb"
-                    android:padding="8dip"
-                    android:text="@string/successValue"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
-            </TableRow>
-            <TableRow
+            <TextView
+                android:id="@+id/CountValue"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_marginLeft="10dp"
-                android:layout_marginRight="10dp">
-                <TextView
-                    android:id="@+id/TimeLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#d1d0cf"
-                    android:padding="8dip"
-                    android:text="@string/timeLabel"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
+                android:layout_height="wrap_content"
+                android:background="#f5eceb"
+                android:padding="8dip"
+                android:text="@string/countValue"
+                android:textColor="#000"
+                android:textSize="14dp" />
+        </TableRow>
 
-                <TextView
-                    android:id="@+id/TimeValue"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#f5eceb"
-                    android:padding="8dip"
-                    android:text="@string/timeValue"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
 
-            </TableRow>
-            <TableRow
+        <TableRow
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <TextView
+                android:id="@+id/SuccessLabel"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_marginLeft="10dp"
-                android:layout_marginRight="10dp">
-                <TextView
-                    android:id="@+id/CaloriesLabel"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#d1d0cf"
-                    android:padding="8dip"
-                    android:text="@string/caloriesLabel"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
+                android:layout_height="wrap_content"
+                android:background="#d1d0cf"
+                android:padding="8dip"
+                android:text="@string/successLabel"
+                android:textColor="#000"
+                android:textSize="14dp" />
 
-                <TextView
-                    android:id="@+id/CaloriesValue"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="#f5eceb"
-                    android:padding="8dip"
-                    android:text="@string/caloriesValue"
-                    android:textColor="#000"
-                    android:textSize="14dp" />
-            </TableRow>
-        </TableLayout>
-    </ScrollView>
+            <TextView
+                android:id="@+id/SuccessValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#f5eceb"
+                android:padding="8dip"
+                android:text="@string/successValue"
+                android:textColor="#000"
+                android:textSize="14dp" />
+        </TableRow>
+
+        <TableRow
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <TextView
+                android:id="@+id/TimeLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#d1d0cf"
+                android:padding="8dip"
+                android:text="@string/timeLabel"
+                android:textColor="#000"
+                android:textSize="14dp" />
+
+            <TextView
+                android:id="@+id/TimeValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#f5eceb"
+                android:padding="8dip"
+                android:text="@string/timeValue"
+                android:textColor="#000"
+                android:textSize="14dp" />
+
+        </TableRow>
+
+        <TableRow
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+>
+
+            <TextView
+                android:id="@+id/CaloriesLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#d1d0cf"
+                android:padding="8dip"
+                android:text="@string/caloriesLabel"
+                android:textColor="#000"
+                android:textSize="14dp" />
+
+            <TextView
+                android:id="@+id/CaloriesValue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="#f5eceb"
+                android:padding="8dip"
+                android:text="@string/caloriesValue"
+                android:textColor="#000"
+                android:textSize="14dp" />
+        </TableRow>
+    </TableLayout>
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

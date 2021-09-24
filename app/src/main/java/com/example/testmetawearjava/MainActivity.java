@@ -98,6 +98,7 @@ public class MainActivity extends Activity implements ServiceConnection {
 
         statusTextView = findViewById(R.id.connectionstatus);
         connectButton = findViewById(R.id.connect_button);
+        changeButtonByState(1, connectButton);
         startDataStreamButton = findViewById(R.id.start_datastream_button);
         datadisplay = findViewById(R.id.datadisplay);
         datadisplay.setSingleLine(false);
