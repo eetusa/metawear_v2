@@ -57,54 +57,34 @@ import bolts.Task;
 
 public class MainActivity extends Activity implements ServiceConnection {
     private BtleService.LocalBinder serviceBinder;
-    private final String MW_MAC_ADDRESS= "C3:70:17:BB:47:48";
-    private MetaWearBoard board;
-    private final static int REQUEST_ENABLE_BT = 1;
-    private int connectionAttemps = 0;
 
-    private List<String> dataAsStrings = new ArrayList<String>();
-    private int dataCount = 0;
-    private int dataCountTreshold = 1;
+    // !!! IMPORTANT !!!
+    // the mac address of the board is hardcoded atm. For testing purposes on your own board,
+    // you can get the address of your own board using bluetooth scanners
+    private final String MW_MAC_ADDRESS= "C3:70:17:BB:47:48";
+
+    private int connectionAttemps = 0;
 
     private List<Float> xData = new ArrayList<>();
     private List<Float> yData = new ArrayList<>();
     private List<Float> zData = new ArrayList<>();
 
-
-    private List<List<Float>> accelometer_offSetDataSet = new ArrayList<>();
-    private float accelometer_offsetZ = 0f;
-    private float accelometer_offsetY = 0f;
-    private float accelometer_offsetX = 0f;
-
+    private TextView datadisplay;
     private TextView statusTextView;
     private Button connectButton;
     private Button startDataStreamButton;
 
-
     private boolean bindSuccesful = false;
     private boolean streamingData = false;
     private boolean connectingCurrently = false;
-    private boolean calibratingCurrently = false;
 
-    private Color buttonDefaultColor;
-
-    private TextView datadisplay;
-
-
+    private MetaWearBoard board;
     SensorFusionBosch sensorFusion;
     Accelerometer  accelerometer;
 
     Runnable updater;
     boolean runUpdater = true;
     DecimalFormat df = new DecimalFormat("#.####");
-
-
-   // private SensorFusionBosch sensorFusion;
-
-
-
-
-
 
 
     @Override
@@ -115,27 +95,21 @@ public class MainActivity extends Activity implements ServiceConnection {
         // Bind the service when the activity is created
         getApplicationContext().bindService(new Intent(this, BtleService.class),
                 this, Context.BIND_AUTO_CREATE);
+
         statusTextView = findViewById(R.id.connectionstatus);
         connectButton = findViewById(R.id.connect_button);
         startDataStreamButton = findViewById(R.id.start_datastream_button);
-
         datadisplay = findViewById(R.id.datadisplay);
         datadisplay.setSingleLine(false);
 
-
         df.setRoundingMode(RoundingMode.CEILING);
-
         changeButtonByState(0, startDataStreamButton);
 
         addListeners();
-
-
-
     }
 
-
+    // add button listeners
     void addListeners(){
-
         connectButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -149,13 +123,278 @@ public class MainActivity extends Activity implements ServiceConnection {
                 startDataStreamButtonListener();
             }
         });
+    }
 
+    // handles UI inputs for connecting and disconnecting to board
+    // and changes the UI to represent connection states
+    void connectButtonListener(){
+        if (bindSuccesful){
+            if (board == null) return;
+            Log.i("status","connectingCurrently: "+connectingCurrently + " board.connected: "+board.isConnected());
 
+            if (connectingCurrently){
+                shutDown();
+                return;
+            }
+            if (!board.isConnected()){
+                connectingCurrently = true;
+                connectDevice();
+                connectionAttemps = 0;
+                changeButtonByState(2,connectButton, "Disconnect");
+            } else {
+                shutDown();
+            }
+        }
+    }
 
+    // handles UI inputs for starting and stopping the data stream
+    // and changes UI to represent data stream states
+    void startDataStreamButtonListener(){
+        if (board == null) return;
+        if (board.isConnected()){
+            if (!streamingData){
+                startLinearMotionStream();
+            } else {
+                stopSensorFusionStream();
+                changeButtonByState(1,startDataStreamButton,"Start data stream");
+                if (board.isConnected()) setStatusText("Connected to "+ board.getModel().toString());
+                else
+                    setStatusText("Disconnected");
+            }
+        }
+    }
+
+    // retrieveBoard()
+    //      attempts to find the board using bluetooth service and binds it
+    public void retrieveBoard() {
+        final BluetoothManager btManager=
+                (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        final BluetoothDevice remoteDevice=
+                btManager.getAdapter().getRemoteDevice(MW_MAC_ADDRESS);
+
+        Log.i("bluedevice", remoteDevice.toString());
+        if (serviceBinder == null) Log.i("blueservice","is null");
+
+        // Create a MetaWear board object for the Bluetooth Device
+        if (remoteDevice != null){
+            board= serviceBinder.getMetaWearBoard(remoteDevice);
+        }
 
     }
 
+    // connectDevice()
+    //      attempts connection to device
+    //      adds listeners to board
+    public void connectDevice(){
+        setStatusText("Attempting connection");
+        connectingCurrently = true;
 
+        // tries to connect to the device until success or 10 times
+        board.connectAsync().continueWith(new Continuation<Void, Void>() {
+            @Override
+            public Void then(Task<Void> task) throws Exception {
+                if (task.isFaulted()) {
+                    Log.i("MainActivity", "BlueConnect failed to connect");
+                    connectionAttemps++;
+                    setStatusText("Connection failed. Retrying.. "+connectionAttemps);
+
+                    if (connectionAttemps < 10){
+                        connectDevice();
+                    } else {
+                        setStatusText("Connection failed.");
+                        changeButtonByState(1, connectButton, "Connect");
+                    }
+                } else {
+
+                    // if connection successful assign some variables used in logics,
+                    // change the ui, blink the board led, print out some info
+                    connectingCurrently = false;
+                    changeButtonByState(1, startDataStreamButton);
+
+                    String deviceName = board.getModel().toString();
+                    setStatusText("Connected to " + deviceName);
+
+                    Log.i("MainActivity", "BlueConnect connected");
+                    Log.i("MainActivity", "board model = " + board.getModel());
+
+                    board.readDeviceInformationAsync()
+                            .continueWith(new Continuation<DeviceInformation, Void>() {
+                                @Override
+                                public Void then(Task<DeviceInformation> task) throws Exception {
+                                    Log.i("MainActivity", "Device Information: " + task.getResult());
+                                    return null;
+                                }
+                            });
+
+                    Log.i("metaboot mode", String.valueOf(board.inMetaBootMode()));
+                    Led led;
+                    if ((led= board.getModule(Led.class)) != null) {
+                        led.editPattern(Led.Color.BLUE, Led.PatternPreset.BLINK)
+                                .repeatCount((byte) 3)
+                                .commit();
+                        led.play();
+                    }
+                }
+                return null;
+            }
+        });
+
+        board.onUnexpectedDisconnect(new MetaWearBoard.UnexpectedDisconnectHandler() {
+            @Override
+            public void disconnected(int status) {
+                Log.i("MainActivity", "Unexpectedly lost connection: " + status);
+            }
+        });
+    }
+
+    // startLinearMotionStream()
+    //      Starts a linear acceleration data producer using sensorFusion on board
+    //      in NDOF-mode ( https://mbientlab.com/androiddocs/latest/sensor_fusion.html )
+    //      which should give xyz data in absolute orientaion (doesn't work tough).
+    //      Also has commented out euler data producer and quaternion producers.
+    //      Changes the UI to represent that data stream is going on.
+    //      Note: should again separate UI and logic
+    void startLinearMotionStream(){
+        runUpdater = true;
+        updateTime();
+        streamingData = true;
+        changeButtonByState(2,startDataStreamButton,"Stop data stream");
+        setStatusText("Stream linear motion data");
+        if (sensorFusion == null) sensorFusion = board.getModule(SensorFusionBosch.class);
+
+        sensorFusion.configure()
+                .mode(SensorFusionBosch.Mode.NDOF)
+                .accRange(SensorFusionBosch.AccRange.AR_16G)
+                .gyroRange(SensorFusionBosch.GyroRange.GR_2000DPS)
+                .commit();
+
+        AsyncDataProducer producer = sensorFusion.linearAcceleration();
+        AsyncDataProducer eulerproducer = sensorFusion.eulerAngles();
+
+        producer.addRouteAsync(new RouteBuilder() {
+            @Override
+            public void configure(RouteComponent source) {
+                source.stream(new Subscriber() {
+                    @Override
+                    public void apply(Data data, Object... env) {
+                        Acceleration acc = (Acceleration) data.value(data.types()[0]);
+
+                        xData.add(acc.x());
+                        yData.add(acc.y());
+                        zData.add(acc.z());
+
+                    }
+                });
+            }
+        }).continueWith(new Continuation<Route, Void>() {
+            @Override
+            public Void then(Task<Route> task) throws Exception {
+                producer.start();
+                sensorFusion.start();
+                return null;
+            }
+        });
+
+        /*
+        eulerproducer.addRouteAsync(new RouteBuilder() {
+            @Override
+            public void configure(RouteComponent source) {
+                source.stream(new Subscriber() {
+                    @Override
+                    public void apply(Data data, Object... env) {
+                        EulerAngles angles = (EulerAngles) data.value(data.types()[0]);
+                        Log.i("Heading",angles.heading()+"");
+                        Log.i("pitch",angles.pitch()+"");
+                        Log.i("roll",angles.roll()+"");
+                        Log.i("yaw",angles.yaw()+"");
+
+                    }
+                });
+            }
+        }).continueWith(new Continuation<Route, Void>() {
+            @Override
+            public Void then(Task<Route> task) throws Exception {
+                //    eulerproducer.start();
+                //   sensorFusion.start();
+                return null;
+            }
+        });
+
+        sensorFusion.quaternion().addRouteAsync(new RouteBuilder() {
+            @Override
+            public void configure(RouteComponent source) {
+                source.stream(new Subscriber() {
+                    @Override
+                    public void apply(Data data, Object... env) {
+                        Log.i("MainActivity", "Quaternion = " + data.value(Quaternion.class));
+                    }
+                });
+            }
+        }).continueWith(new Continuation<Route, Void>() {
+            @Override
+            public Void then(Task<Route> task) throws Exception {
+                sensorFusion.quaternion().start();
+                sensorFusion.start();
+                return null;
+            }
+        });
+         */
+    }
+
+
+    // stops sensorFusion data stream
+    void stopSensorFusionStream(){
+        if (sensorFusion != null){
+            if (sensorFusion.linearAcceleration() != null){
+                sensorFusion.linearAcceleration().stop();
+            }
+            sensorFusion.stop();
+        }
+        if (board != null){
+            board.tearDown();
+        }
+        runUpdater = false;
+        streamingData = false;
+        connectingCurrently = false;
+    }
+
+    // kills all data streams and updates the UI and logics
+    // note: ui and logic should be separated to different functions
+    public void shutDown(){
+        if (accelerometer != null){
+            if (accelerometer.acceleration() != null){
+                accelerometer.acceleration().stop();
+            }
+            accelerometer.stop();
+        }
+        if (board != null){
+            board.tearDown();
+            if (connectingCurrently || board.isConnected()){
+                board.disconnectAsync().continueWith(new Continuation<Void, Void>() {
+                    @Override
+                    public Void then(Task<Void> task) throws Exception {
+                        Log.i("MainActivity", "Disconnected");
+                        return null;
+                    }
+                });
+            }
+        }
+        setStatusText("Disconnected");
+        changeButtonByState(1,connectButton,"Connect");
+        changeButtonByState(0,startDataStreamButton,"Start data stream");
+        runUpdater = false;
+        streamingData = false;
+        connectingCurrently = false;
+        connectionAttemps = 0;
+    }
+
+    // set status text
+    void setStatusText(String str){
+        if (statusTextView == null) return;
+        statusTextView.setText("Status: "+str);
+    }
+
+    // Changes button style and text in UI
     void changeButtonByState(int state, Button button, String text){
         if (state == 2){
             Drawable buttonDrawable = button.getBackground();
@@ -188,12 +427,12 @@ public class MainActivity extends Activity implements ServiceConnection {
         }
     }
 
+    // Changes button style in UI
     void changeButtonByState(int state, Button button){
         if (state == 2){
             Drawable buttonDrawable = button.getBackground();
             buttonDrawable = DrawableCompat.wrap(buttonDrawable);
             DrawableCompat.setTint(buttonDrawable, Color.CYAN);
-
             button.setBackground(buttonDrawable);
             button.setTextColor(Color.DKGRAY);
 
@@ -201,325 +440,19 @@ public class MainActivity extends Activity implements ServiceConnection {
             Drawable buttonDrawable = button.getBackground();
             buttonDrawable = DrawableCompat.wrap(buttonDrawable);
             DrawableCompat.setTint(buttonDrawable, Color.LTGRAY);
-
             button.setTextColor(Color.DKGRAY);
             button.setBackground(buttonDrawable);
-
-
         } else {
             Drawable buttonDrawable = button.getBackground();
             buttonDrawable = DrawableCompat.wrap(buttonDrawable);
             DrawableCompat.setTint(buttonDrawable, Color.parseColor("#ebebeb"));
-
             button.setBackground(buttonDrawable);
             button.setTextColor(Color.LTGRAY);
 
         }
     }
 
-
-    void connectButtonListener(){
-        if (bindSuccesful){
-            if (board == null) return;
-
-            Log.i("status","connectingCurrently: "+connectingCurrently + " board.connected: "+board.isConnected());
-
-            if (connectingCurrently){
-                shutDown();
-                return;
-            }
-
-            if (!board.isConnected()){
-                connectingCurrently = true;
-                connectDevice();
-                connectionAttemps = 0;
-                changeButtonByState(2,connectButton, "Disconnect");
-            } else {
-                shutDown();
-            }
-        }
-    }
-
-    void stopSensorFusionStream(){
-        if (sensorFusion != null){
-            if (sensorFusion.linearAcceleration() != null){
-                sensorFusion.linearAcceleration().stop();
-            }
-            sensorFusion.stop();
-        }
-        if (board != null){
-            board.tearDown();
-        }
-        runUpdater = false;
-        streamingData = false;
-        connectingCurrently = false;
-        calibratingCurrently = false;
-    }
-
-
-    void startDataStreamButtonListener(){
-        if (board == null) return;
-        if (board.isConnected()){
-            if (!streamingData){
-
-                startLinearMotionStream();
-            } else {
-
-                stopSensorFusionStream();
-                changeButtonByState(1,startDataStreamButton,"Start data stream");
-                if (board.isConnected()) setStatusText("Connected to "+ board.getModel().toString());
-                else
-                    setStatusText("Disconnected");
-
-            }
-        }
-    }
-
-
-
-    public void shutDown(){
-        if (accelerometer != null){
-            if (accelerometer.acceleration() != null){
-                accelerometer.acceleration().stop();
-            }
-            accelerometer.stop();
-        }
-        if (board != null){
-            board.tearDown();
-            if (connectingCurrently || board.isConnected()){
-                board.disconnectAsync().continueWith(new Continuation<Void, Void>() {
-                    @Override
-                    public Void then(Task<Void> task) throws Exception {
-                        Log.i("MainActivity", "Disconnected");
-                        return null;
-                    }
-                });
-            }
-        }
-        setStatusText("Disconnected");
-        changeButtonByState(1,connectButton,"Connect");
-        changeButtonByState(0,startDataStreamButton,"Start data stream");
-        //changeButtonByState(0,calibrationButton);
-        runUpdater = false;
-        streamingData = false;
-        connectingCurrently = false;
-        connectionAttemps = 0;
-    }
-
-    public void retrieveBoard() {
-        final BluetoothManager btManager=
-                (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        final BluetoothDevice remoteDevice=
-                btManager.getAdapter().getRemoteDevice(MW_MAC_ADDRESS);
-
-            Log.i("bluedevice", remoteDevice.toString());
-            if (serviceBinder == null) Log.i("blueservice","is null");
-
-        // Create a MetaWear board object for the Bluetooth Device
-        if (remoteDevice != null){
-            board= serviceBinder.getMetaWearBoard(remoteDevice);
-        }
-
-    }
-
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (board != null){
-            shutDown();
-        }
-
-        getApplicationContext().unbindService(this);
-
-    }
-
-    void setStatusText(String str){
-        if (statusTextView == null) return;
-        statusTextView.setText("Status: "+str);
-    }
-
-    @Override
-    public void onServiceConnected(ComponentName name, IBinder service) {
-        // Typecast the binder to the service's LocalBinder class
-        serviceBinder = (BtleService.LocalBinder) service;
-        retrieveBoard();
-        bindSuccesful = true;
-        setStatusText("Disconnected");
-       // connectDevice();
-    }
-
-
-    void startLinearMotionStream(){
-        runUpdater = true;
-        updateTime();
-        streamingData = true;
-        changeButtonByState(2,startDataStreamButton,"Stop data stream");
-        setStatusText("Stream linear motion data");
-        if (sensorFusion == null)  sensorFusion = board.getModule(SensorFusionBosch.class);
-
-
-        sensorFusion.configure()
-                .mode(SensorFusionBosch.Mode.NDOF)
-                .accRange(SensorFusionBosch.AccRange.AR_16G)
-                .gyroRange(SensorFusionBosch.GyroRange.GR_2000DPS)
-                .commit();
-
-
-
-        AsyncDataProducer producer = sensorFusion.linearAcceleration();
-        AsyncDataProducer eulerproducer = sensorFusion.eulerAngles();
-
-        producer.addRouteAsync(new RouteBuilder() {
-            @Override
-            public void configure(RouteComponent source) {
-                source.stream(new Subscriber() {
-                    @Override
-                    public void apply(Data data, Object... env) {
-                        Acceleration acc = (Acceleration) data.value(data.types()[0]);
-
-                        xData.add(acc.x() - accelometer_offsetX);
-                        yData.add(acc.y() - accelometer_offsetY);
-                        zData.add(acc.z() - accelometer_offsetZ);
-
-                    }
-                });
-            }
-        }).continueWith(new Continuation<Route, Void>() {
-            @Override
-            public Void then(Task<Route> task) throws Exception {
-                producer.start();
-                sensorFusion.start();
-                return null;
-            }
-        });
-
-        eulerproducer.addRouteAsync(new RouteBuilder() {
-            @Override
-            public void configure(RouteComponent source) {
-                source.stream(new Subscriber() {
-                    @Override
-                    public void apply(Data data, Object... env) {
-                        EulerAngles angles = (EulerAngles) data.value(data.types()[0]);
-                        Log.i("Heading",angles.heading()+"");
-                        Log.i("pitch",angles.pitch()+"");
-                        Log.i("roll",angles.roll()+"");
-                        Log.i("yaw",angles.yaw()+"");
-
-                        //  int xAmount = xData.size();
-                        //  series.appendData(new DataPoint(xAmount, xData.get(xAmount-1)), true, xAmount);
-                    }
-                });
-            }
-        }).continueWith(new Continuation<Route, Void>() {
-            @Override
-            public Void then(Task<Route> task) throws Exception {
-            //    eulerproducer.start();
-             //   sensorFusion.start();
-                return null;
-            }
-        });
-
-        sensorFusion.quaternion().addRouteAsync(new RouteBuilder() {
-            @Override
-            public void configure(RouteComponent source) {
-                source.stream(new Subscriber() {
-                    @Override
-                    public void apply(Data data, Object... env) {
-                        Log.i("MainActivity", "Quaternion = " + data.value(Quaternion.class));
-                    }
-                });
-            }
-        }).continueWith(new Continuation<Route, Void>() {
-            @Override
-            public Void then(Task<Route> task) throws Exception {
-                sensorFusion.quaternion().start();
-                sensorFusion.start();
-                return null;
-            }
-        });
-
-
-    }
-
-
-
-
-    public void connectDevice(){
-        setStatusText("Attempting connection");
-        connectingCurrently = true;
-        board.connectAsync().continueWith(new Continuation<Void, Void>() {
-            @Override
-            public Void then(Task<Void> task) throws Exception {
-                if (task.isFaulted()) {
-                    Log.i("MainActivity", "BlueConnect failed to connect");
-                    connectionAttemps++;
-                    setStatusText("Connection failed. Retrying.. "+connectionAttemps);
-                    //setStatusText("Connection failed");
-                 //   statusTextView.setText("Connection failed");
-                    if (connectionAttemps < 10){
-                        connectDevice();
-                    } else {
-                        setStatusText("Connection failed.");
-                        changeButtonByState(1, connectButton, "Connect");
-                    }
-
-                } else {
-                    connectingCurrently = false;
-
-                    changeButtonByState(1, startDataStreamButton);
-
-                    String deviceName = board.getModel().toString();
-                    setStatusText("Connected to " + deviceName);
-
-                    Log.i("MainActivity", "BlueConnect connected");
-                    Log.i("MainActivity", "board model = " + board.getModel());
-
-
-
-
-                    board.readDeviceInformationAsync()
-                            .continueWith(new Continuation<DeviceInformation, Void>() {
-                                @Override
-                                public Void then(Task<DeviceInformation> task) throws Exception {
-                                    Log.i("MainActivity", "Device Information: " + task.getResult());
-
-                                    return null;
-                                }
-                            });
-
-                    //startAccelerationDataStreamWithOffset();
-
-                    Log.i("metaboot mode", String.valueOf(board.inMetaBootMode()));
-
-
-                    Led led;
-                    if ((led= board.getModule(Led.class)) != null) {
-                        led.editPattern(Led.Color.BLUE, Led.PatternPreset.BLINK)
-                                .repeatCount((byte) 3)
-                                .commit();
-                        led.play();
-                    }
-
-
-
-                }
-
-                return null;
-            }
-        });
-
-        board.onUnexpectedDisconnect(new MetaWearBoard.UnexpectedDisconnectHandler() {
-            @Override
-            public void disconnected(int status) {
-                Log.i("MainActivity", "Unexpectedly lost connection: " + status);
-            }
-        });
-
-
-
-    }
-
+    // updates ui for data gotten from data stream every 300ms
     void updateTime() {
         datadisplay = findViewById(R.id.datadisplay);
         final Handler timerHandler = new Handler();
@@ -542,7 +475,27 @@ public class MainActivity extends Activity implements ServiceConnection {
     }
 
 
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        if (board != null){
+            shutDown();
+        }
+        getApplicationContext().unbindService(this);
 
+    }
     @Override
     public void onServiceDisconnected(ComponentName componentName) { }
+    @Override
+    public void onServiceConnected(ComponentName name, IBinder service) {
+        // Typecast the binder to the service's LocalBinder class
+        serviceBinder = (BtleService.LocalBinder) service;
+        retrieveBoard();
+        bindSuccesful = true;
+        setStatusText("Disconnected");
+    }
+
+
+
+
 }

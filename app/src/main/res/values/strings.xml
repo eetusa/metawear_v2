@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">TestMetaWearJava</string>
+    <string name="activityLabel">Activity</string>
+    <string name="activityValue">Wood chopping</string>
+    <string name="countLabel">Swings</string>
+    <string name="countValue">-</string>
+    <string name="successLabel">Wood split</string>
+    <string name="successValue">-</string>
+    <string name="timeLabel">Activity duration</string>
+    <string name="timeValue">-</string>
+    <string name="caloriesLabel">Calories spent</string>
+    <string name="caloriesValue">-</string>
 </resources>

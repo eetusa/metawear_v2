@@ -65,18 +65,145 @@
         app:layout_constraintTop_toBottomOf="@+id/datadisplay"
         tools:ignore="SpeakableTextPresentCheck">
 
-        <LinearLayout
+        <TableLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:stretchColumns="*"
+            >
 
-            <TextView
-                android:id="@+id/textView"
+            <TableRow
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="#F8B5B5"
-                android:text="Previous activity" />
-        </LinearLayout>
+                android:layout_height="match_parent"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="10dp">
+
+                <TextView
+                    android:id="@+id/ActivityLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#d1d0cf"
+                    android:padding="8dip"
+                    android:text="@string/activityLabel"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+
+                <TextView
+                    android:id="@+id/ActivityValue"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#f5eceb"
+                    android:padding="8dip"
+                    android:text="@string/activityValue"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+
+            </TableRow>
+
+            <TableRow
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="10dp">
+                <TextView
+                    android:id="@+id/CountLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#d1d0cf"
+                    android:padding="8dip"
+                    android:text="@string/countLabel"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+
+                <TextView
+                    android:id="@+id/CountValue"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#f5eceb"
+                    android:padding="8dip"
+                    android:text="@string/countValue"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+            </TableRow>
+
+
+
+            <TableRow
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="10dp">
+                <TextView
+                    android:id="@+id/SuccessLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#d1d0cf"
+                    android:padding="8dip"
+                    android:text="@string/successLabel"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+
+                <TextView
+                    android:id="@+id/SuccessValue"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#f5eceb"
+                    android:padding="8dip"
+                    android:text="@string/successValue"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+            </TableRow>
+            <TableRow
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="10dp">
+                <TextView
+                    android:id="@+id/TimeLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#d1d0cf"
+                    android:padding="8dip"
+                    android:text="@string/timeLabel"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+
+                <TextView
+                    android:id="@+id/TimeValue"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#f5eceb"
+                    android:padding="8dip"
+                    android:text="@string/timeValue"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+
+            </TableRow>
+            <TableRow
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginLeft="10dp"
+                android:layout_marginRight="10dp">
+                <TextView
+                    android:id="@+id/CaloriesLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#d1d0cf"
+                    android:padding="8dip"
+                    android:text="@string/caloriesLabel"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+
+                <TextView
+                    android:id="@+id/CaloriesValue"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="#f5eceb"
+                    android:padding="8dip"
+                    android:text="@string/caloriesValue"
+                    android:textColor="#000"
+                    android:textSize="14dp" />
+            </TableRow>
+        </TableLayout>
     </ScrollView>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
