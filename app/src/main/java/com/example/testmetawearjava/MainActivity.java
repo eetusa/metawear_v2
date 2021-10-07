@@ -20,6 +20,12 @@ import android.widget.TextView;
 
 import androidx.core.graphics.drawable.DrawableCompat;
 
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
 import com.jjoe64.graphview.GraphView;
 import com.jjoe64.graphview.helper.StaticLabelsFormatter;
 import com.jjoe64.graphview.series.DataPoint;
@@ -71,6 +77,13 @@ public class MainActivity extends Activity implements ServiceConnection {
 
     private TextView datadisplay;
     private TextView statusTextView;
+
+    private TextView activityValue;
+    private TextView countValue;
+    private TextView successValue;
+    private TextView timeValue;
+    private TextView caloricValue;
+
     private Button connectButton;
     private Button startDataStreamButton;
 
@@ -96,6 +109,12 @@ public class MainActivity extends Activity implements ServiceConnection {
         getApplicationContext().bindService(new Intent(this, BtleService.class),
                 this, Context.BIND_AUTO_CREATE);
 
+        activityValue = findViewById(R.id.ActivityValue);
+        countValue = findViewById(R.id.CountValue);
+        successValue = findViewById(R.id.SuccessValue);
+        timeValue = findViewById(R.id.TimeValue);
+        caloricValue = findViewById(R.id.CaloriesValue);
+
         statusTextView = findViewById(R.id.connectionstatus);
         connectButton = findViewById(R.id.connect_button);
         changeButtonByState(1, connectButton);
@@ -105,6 +124,8 @@ public class MainActivity extends Activity implements ServiceConnection {
 
         df.setRoundingMode(RoundingMode.CEILING);
         changeButtonByState(0, startDataStreamButton);
+
+        OnActivityEnd();
 
         addListeners();
     }
@@ -158,11 +179,41 @@ public class MainActivity extends Activity implements ServiceConnection {
             } else {
                 stopSensorFusionStream();
                 changeButtonByState(1,startDataStreamButton,"Start data stream");
+
                 if (board.isConnected()) setStatusText("Connected to "+ board.getModel().toString());
                 else
                     setStatusText("Disconnected");
             }
         }
+    }
+
+    void OnActivityEnd(){
+        // Instantiate the RequestQueue.
+        Log.i("Activity ended","here");
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String url ="http://koikka.work:5000/workFIT/get_status?userId=q";
+
+// Request a string response from the provided URL.
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        // Display the first 500 characters of the response string.
+                        Log.i("Response is: ", response.substring(0,500));
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                if (error.getMessage() != null) Log.i("Response is: ", error.getMessage());
+                else{
+                    Log.i("Response is: ", "no response");
+                }
+            }
+        });
+
+// Add the request to the RequestQueue.
+        queue.add(stringRequest);
+
     }
 
     // retrieveBoard()
