@@ -51,11 +51,16 @@ import com.mbientlab.metawear.module.Gyro;
 import com.mbientlab.metawear.module.Led;
 import com.mbientlab.metawear.module.SensorFusionBosch;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 import bolts.Continuation;
@@ -71,9 +76,7 @@ public class MainActivity extends Activity implements ServiceConnection {
 
     private int connectionAttemps = 0;
 
-    private List<Float> xData = new ArrayList<>();
-    private List<Float> yData = new ArrayList<>();
-    private List<Float> zData = new ArrayList<>();
+    private List<Float[]> accelerationData = new ArrayList<>();
 
     private TextView datadisplay;
     private TextView statusTextView;
@@ -188,31 +191,103 @@ public class MainActivity extends Activity implements ServiceConnection {
     }
 
     void OnActivityEnd(){
+
+        //TestCall();
+        GenerateRandomAccelerationData();
+        SendActivityData();
+
+    }
+
+    private void GenerateRandomAccelerationData(){
+        Random rnd = new Random();
+        for (int i = 0; i < 100; i++){
+            float x = rnd.nextFloat();
+            float y = rnd.nextFloat();
+            float z = rnd.nextFloat();
+            accelerationData.add(new Float[]{x,y,z});
+        }
+    }
+
+    private void SendActivityData(){
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String postUrl ="http://koikka.work:5000/workFIT/data?action=save_data&userId=q&key=1&data=1,2,3"; //post endpoint?
+
+        Random rnd = new Random();                      // test only!!
+        int activityId = 10000 + rnd.nextInt(90000);     // test only!!
+
+
+        JSONObject postData = new JSONObject();
+
+        try{
+            postData.put("activity_id", activityId);
+            JSONArray dataArray = new JSONArray();
+
+            for (int i = 0; i < accelerationData.size(); i++){
+                JSONArray dataPoint = new JSONArray();
+                dataPoint.put(accelerationData.get(i)[0]);
+                dataPoint.put(accelerationData.get(i)[1]);
+                dataPoint.put(accelerationData.get(i)[2]);
+                dataArray.put(dataPoint);
+            }
+            postData.put("data", dataArray);
+            Log.i("data JSON", String.valueOf(postData));
+        } catch (Exception e){
+
+        }
+
+    }
+
+    void TestCall(){
         // Instantiate the RequestQueue.
         Log.i("Activity ended","here");
         RequestQueue queue = Volley.newRequestQueue(this);
         String url ="http://koikka.work:5000/workFIT/get_status?userId=q";
 
-// Request a string response from the provided URL.
+        // Request a string response from the provided URL.
         StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
                         // Display the first 500 characters of the response string.
-                        Log.i("Response is: ", response.substring(0,500));
+                        Log.i("Response", response);
+                        try {
+                            JSONObject reader = new JSONObject(response);
+                            JSONObject data = reader.getJSONObject("data");
+                            SetDataOnUi(data);
+
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+
                     }
                 }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
                 if (error.getMessage() != null) Log.i("Response is: ", error.getMessage());
                 else{
-                    Log.i("Response is: ", "no response");
+                    Log.e("ResponseError", "no response");
                 }
             }
         });
 
-// Add the request to the RequestQueue.
+        // Add the request to the RequestQueue.
         queue.add(stringRequest);
+    }
+
+    void SetDataOnUi(JSONObject data) throws JSONException {
+        String activityId = data.getString("activity_id");
+        String activityTimeSpent = data.getString("time_spent_splitting_wood");
+        String activityName = data.getString("activity");
+        String activityRepeatCount = data.getString("hit_times");
+        String activityDate = data.getString("time");
+        String activitySuccessCount = data.getString("wood_split");
+        String activityCaloricCount = data.getString("kcal");
+
+        activityValue.setText(activityName);
+        countValue.setText(activityRepeatCount);
+        successValue.setText(activitySuccessCount);
+        timeValue.setText(activityTimeSpent);
+        caloricValue.setText(activityCaloricCount);
 
     }
 
@@ -331,9 +406,13 @@ public class MainActivity extends Activity implements ServiceConnection {
                     public void apply(Data data, Object... env) {
                         Acceleration acc = (Acceleration) data.value(data.types()[0]);
 
+                        /*
                         xData.add(acc.x());
                         yData.add(acc.y());
                         zData.add(acc.z());
+                         */
+
+                        accelerationData.add(new Float[]{acc.x(), acc.y(), acc.z()});
 
                     }
                 });
@@ -511,12 +590,13 @@ public class MainActivity extends Activity implements ServiceConnection {
 
         updater = () -> {
 
-            int index = xData.size()-1;
+            int index = accelerationData.size()-1;
 
             if (index > 0){
-                datadisplay.setText("x: " + df.format(xData.get(index)) + " \n");
-                datadisplay.append("y: " + df.format(yData.get(index)) + " \n");
-                datadisplay.append("z: " + df.format(zData.get(index)));
+                Float[] data = accelerationData.get(index);
+                datadisplay.setText("x: " + df.format(data[0]) + " \n");
+                datadisplay.append("y: " + df.format(data[1]) + " \n");
+                datadisplay.append("z: " + df.format(data[2]) );
             }
 
             if (runUpdater){
