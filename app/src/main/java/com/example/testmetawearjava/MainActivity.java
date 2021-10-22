@@ -24,6 +24,7 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import com.jjoe64.graphview.GraphView;
@@ -127,7 +128,7 @@ public class MainActivity extends Activity implements ServiceConnection {
 
         df.setRoundingMode(RoundingMode.CEILING);
         changeButtonByState(0, startDataStreamButton);
-
+        Log.i("lol","lol");
         OnActivityEnd();
 
         addListeners();
@@ -200,23 +201,59 @@ public class MainActivity extends Activity implements ServiceConnection {
 
     private void GenerateRandomAccelerationData(){
         Random rnd = new Random();
-        for (int i = 0; i < 100; i++){
+        for (int i = 0; i < 10000; i++){
             float x = rnd.nextFloat();
             float y = rnd.nextFloat();
             float z = rnd.nextFloat();
             accelerationData.add(new Float[]{x,y,z});
         }
+
+        Log.i("Generated values","first value: " + accelerationData.get(0)[0]+ " "+ accelerationData.get(0)[1]+ " "+ accelerationData.get(0)[2]+ " last value: "+ accelerationData.get(accelerationData.size()-1)[0]+ " "+ accelerationData.get(accelerationData.size()-1)[1]+ " "+ accelerationData.get(accelerationData.size()-1)[2]);
     }
 
     private void SendActivityData(){
         RequestQueue queue = Volley.newRequestQueue(this);
-        String postUrl ="http://koikka.work:5000/workFIT/data?action=save_data&userId=q&key=1&data=1,2,3"; //post endpoint?
+        String base_url ="http://koikka.work:5000/workFIT/"; //post endpoint?
 
-        Random rnd = new Random();                      // test only!!
-        int activityId = 10000 + rnd.nextInt(90000);     // test only!!
+     //   Log.i("SendActivityData","HereDog");
+        // test only!!
+        String userId = "testi_user2";
+        Random rnd = new Random();
+        int activityId = 10000 + rnd.nextInt(90000);
+        String actId = Integer.toString(activityId);
+        String data = "";
+        String data_str = stringBuilderifyData();
+       // data = stringifyData();
 
+        //Log.i("hevonen",data_str);
+        // test only!!
+        StringBuilder end_url = new StringBuilder();
+        end_url.append(base_url);
+        end_url.append("data?action=save_data&userId=" + userId + "&key=" + actId + "&data=");
+        end_url.append(data_str);
+       // String use_url = base_url + "data?action=save_data&userId=" + userId + "&key=" + actId + "&data=" + data;
+       // Log.i("Hevonen", use_url);
 
         JSONObject postData = new JSONObject();
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.POST, end_url.toString(), postData, new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject response) {
+               // Log.i("Hevonen","response length " + response.length());
+               // System.out.println(response);
+                printData(response);
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                error.printStackTrace();
+            }
+        });
+
+        queue.add(jsonObjectRequest);
+
+/*
+        JSONObject postData = new JSONObject();
+
 
         try{
             postData.put("activity_id", activityId);
@@ -235,6 +272,53 @@ public class MainActivity extends Activity implements ServiceConnection {
 
         }
 
+ */
+
+    }
+
+    private void printData(JSONObject obj){
+        try {
+            JSONArray lol = obj.getJSONObject("data").getJSONArray("data");
+            for (int i = 0; i < lol.length(); i++){
+
+                Log.i("testi",""+i);
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    private String stringBuilderifyData(){
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < accelerationData.size(); i++){
+            result.append("[");
+            result.append(accelerationData.get(i)[0]);
+            result.append(";");
+            result.append(accelerationData.get(i)[1]);
+            result.append(";");
+            result.append(accelerationData.get(i)[2]);
+            result.append("],");
+        }
+
+        //result = result.substring(0, result.length()-1);
+        return result.substring(0, result.length()-1);
+
+    }
+
+    private String stringifyData(){
+        String result = "";
+        for (int i = 0; i < accelerationData.size(); i++){
+            result += "[";
+            result += accelerationData.get(i)[0];
+            result += ";";
+            result += accelerationData.get(i)[1];
+            result += ";";
+            result += accelerationData.get(i)[2];
+            result += "],";
+        }
+        result = result.substring(0, result.length()-1);
+        return result;
     }
 
     void TestCall(){
