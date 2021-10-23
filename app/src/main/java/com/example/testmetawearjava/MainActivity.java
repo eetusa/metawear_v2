@@ -20,6 +20,7 @@ import android.widget.TextView;
 
 import androidx.core.graphics.drawable.DrawableCompat;
 
+import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
@@ -60,7 +61,9 @@ import java.math.RoundingMode;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -75,9 +78,14 @@ public class MainActivity extends Activity implements ServiceConnection {
     // you can get the address of your own board using bluetooth scanners
     private final String MW_MAC_ADDRESS= "C3:70:17:BB:47:48";
 
-    private int connectionAttemps = 0;
+    private int connectionAttempts = 0;
 
     private List<Float[]> accelerationData = new ArrayList<>();
+    private Map<Integer, JSONObject> savedActivities = new HashMap<>();
+    private DataContainer dataContainer = new DataContainer();
+
+
+    private String userId = "TestiKayttaja";
 
     private TextView datadisplay;
     private TextView statusTextView;
@@ -102,6 +110,7 @@ public class MainActivity extends Activity implements ServiceConnection {
     Runnable updater;
     boolean runUpdater = true;
     DecimalFormat df = new DecimalFormat("#.####");
+    Handler handler = new Handler();
 
 
     @Override
@@ -129,10 +138,119 @@ public class MainActivity extends Activity implements ServiceConnection {
         df.setRoundingMode(RoundingMode.CEILING);
         changeButtonByState(0, startDataStreamButton);
         Log.i("lol","lol");
-        OnActivityEnd();
+       // OnActivityEnd();
 
         addListeners();
+        handler.post(runnableCode);
     }
+
+
+    // Define the code block to be executed
+    private Runnable runnableCode = new Runnable() {
+        @Override
+        public void run() {
+
+            for (int key : savedActivities.keySet()) {
+                if (savedActivities.get(key) == null){
+                    RequestDataByActivityId(key);
+                }
+            }
+
+            if (dataContainer.hasData()){
+                Log.i("Network cycle","Data in store(count): " +dataContainer.count);
+                for (int i = 0; i < dataContainer.count; i++){
+                    if (dataContainer.isDataSending(i)==false){
+                        AttemptToSendData(i);
+                    }
+
+                }
+            }
+
+            // upd every 10 seconds
+            handler.postDelayed(runnableCode, 10000);
+        }
+    };
+
+    void AttemptToSendData(int index){
+
+        List<Float[]> data = dataContainer.getData(index);
+        dataContainer.markSendingData(index, true);
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String base_url ="http://koikka.work:5000/workFIT/"; //post endpoint?
+
+        // test only!!
+        Random rnd = new Random();
+        int activityId = 10000 + rnd.nextInt(90000);
+        Log.i("Activity cycle","Attempting sending activity data of size: " + data.size() + " with activity id: " +activityId);
+        // test only!!
+
+        String data_str = stringBuilderifyData(data);
+
+        StringBuilder end_url = new StringBuilder();
+        end_url.append(base_url);
+        end_url.append("data?action=save_data&userId=" + userId + "&key=" + activityId + "&data=");
+        end_url.append(data_str);
+
+        JSONObject postData = new JSONObject();
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.POST, end_url.toString(), postData, new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject response) {
+                dataContainer.removeData(index);
+                printData(response);
+                savedActivities.put(activityId, null);
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                error.printStackTrace();
+                dataContainer.markSendingData(index, false);
+
+            }
+        });
+        jsonObjectRequest.setRetryPolicy(new DefaultRetryPolicy(15000, 0, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
+        queue.add(jsonObjectRequest);
+    }
+
+    void RequestDataByActivityId(int activityId) {
+        // Instantiate the RequestQueue.
+        Log.i("Activity cycle","Requesting activity by id " + activityId);
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String url = "http://koikka.work:5000/workFIT/get_status?userId=" + userId + "&key=" + activityId;
+
+        // Request a string response from the provided URL.
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+                new Response.Listener<String>() {
+                    @Override
+                    public void onResponse(String response) {
+                        // Display the first 500 characters of the response string.
+                        Log.i("Activity cycle","Received response");
+                        Log.i("Activity cycle",response);
+                        try {
+                            JSONObject reader = new JSONObject(response);
+                            JSONObject data = reader.getJSONObject("data");
+                            savedActivities.put(activityId, data);
+                            SetDataOnUi(data);
+
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                if (error.getMessage() != null) Log.i("Response is: ", error.getMessage());
+                else {
+                    Log.e("ResponseError", "no response");
+                }
+            }
+        });
+
+        queue.add(stringRequest);
+
+    }
+
+
 
     // add button listeners
     void addListeners(){
@@ -165,7 +283,7 @@ public class MainActivity extends Activity implements ServiceConnection {
             if (!board.isConnected()){
                 connectingCurrently = true;
                 connectDevice();
-                connectionAttemps = 0;
+                connectionAttempts = 0;
                 changeButtonByState(2,connectButton, "Disconnect");
             } else {
                 shutDown();
@@ -181,7 +299,9 @@ public class MainActivity extends Activity implements ServiceConnection {
             if (!streamingData){
                 startLinearMotionStream();
             } else {
+
                 stopSensorFusionStream();
+                OnActivityEnd();
                 changeButtonByState(1,startDataStreamButton,"Start data stream");
 
                 if (board.isConnected()) setStatusText("Connected to "+ board.getModel().toString());
@@ -194,9 +314,16 @@ public class MainActivity extends Activity implements ServiceConnection {
     void OnActivityEnd(){
 
         //TestCall();
-        GenerateRandomAccelerationData();
+        //GenerateRandomAccelerationData();
+        Log.i("Activity cycle","Ending activity");
         SendActivityData();
+        AddDataToSendQueue();
 
+    }
+
+    private void AddDataToSendQueue(){
+        dataContainer.addData(accelerationData);
+        accelerationData = new ArrayList<>();
     }
 
     private void GenerateRandomAccelerationData(){
@@ -211,15 +338,17 @@ public class MainActivity extends Activity implements ServiceConnection {
         Log.i("Generated values","first value: " + accelerationData.get(0)[0]+ " "+ accelerationData.get(0)[1]+ " "+ accelerationData.get(0)[2]+ " last value: "+ accelerationData.get(accelerationData.size()-1)[0]+ " "+ accelerationData.get(accelerationData.size()-1)[1]+ " "+ accelerationData.get(accelerationData.size()-1)[2]);
     }
 
+
     private void SendActivityData(){
         RequestQueue queue = Volley.newRequestQueue(this);
         String base_url ="http://koikka.work:5000/workFIT/"; //post endpoint?
 
-     //   Log.i("SendActivityData","HereDog");
+
         // test only!!
-        String userId = "testi_user2";
         Random rnd = new Random();
         int activityId = 10000 + rnd.nextInt(90000);
+        Log.i("Activity cycle","Sending activity data of size: " + accelerationData.size() + " with activity id: " +activityId);
+
         String actId = Integer.toString(activityId);
         String data = "";
         String data_str = stringBuilderifyData();
@@ -241,6 +370,7 @@ public class MainActivity extends Activity implements ServiceConnection {
                // Log.i("Hevonen","response length " + response.length());
                // System.out.println(response);
                 printData(response);
+                savedActivities.put(activityId, null);
             }
         }, new Response.ErrorListener() {
             @Override
@@ -248,7 +378,7 @@ public class MainActivity extends Activity implements ServiceConnection {
                 error.printStackTrace();
             }
         });
-
+        jsonObjectRequest.setRetryPolicy(new DefaultRetryPolicy(15000, 0, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
         queue.add(jsonObjectRequest);
 
 /*
@@ -281,11 +411,27 @@ public class MainActivity extends Activity implements ServiceConnection {
             JSONArray lol = obj.getJSONObject("data").getJSONArray("data");
             for (int i = 0; i < lol.length(); i++){
 
-                Log.i("testi",""+i);
+                Log.i("testi",""+lol.get(i));
             }
         } catch (JSONException e) {
             e.printStackTrace();
         }
+
+    }
+    private String stringBuilderifyData(List<Float[]> data){
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < data.size(); i++){
+            result.append("[");
+            result.append(data.get(i)[0]);
+            result.append(";");
+            result.append(data.get(i)[1]);
+            result.append(";");
+            result.append(data.get(i)[2]);
+            result.append("],");
+        }
+
+        //result = result.substring(0, result.length()-1);
+        return result.substring(0, result.length()-1);
 
     }
 
@@ -358,6 +504,7 @@ public class MainActivity extends Activity implements ServiceConnection {
         queue.add(stringRequest);
     }
 
+
     void SetDataOnUi(JSONObject data) throws JSONException {
         String activityId = data.getString("activity_id");
         String activityTimeSpent = data.getString("time_spent_splitting_wood");
@@ -406,10 +553,10 @@ public class MainActivity extends Activity implements ServiceConnection {
             public Void then(Task<Void> task) throws Exception {
                 if (task.isFaulted()) {
                     Log.i("MainActivity", "BlueConnect failed to connect");
-                    connectionAttemps++;
-                    setStatusText("Connection failed. Retrying.. "+connectionAttemps);
+                    connectionAttempts++;
+                    setStatusText("Connection failed. Retrying.. "+connectionAttempts);
 
-                    if (connectionAttemps < 10){
+                    if (connectionAttempts < 10){
                         connectDevice();
                     } else {
                         setStatusText("Connection failed.");
@@ -466,6 +613,8 @@ public class MainActivity extends Activity implements ServiceConnection {
     //      Changes the UI to represent that data stream is going on.
     //      Note: should again separate UI and logic
     void startLinearMotionStream(){
+        Log.i("Activity cycle","Starting activity record");
+      //  accelerationData = new ArrayList<>();
         runUpdater = true;
         updateTime();
         streamingData = true;
@@ -600,7 +749,7 @@ public class MainActivity extends Activity implements ServiceConnection {
         runUpdater = false;
         streamingData = false;
         connectingCurrently = false;
-        connectionAttemps = 0;
+        connectionAttempts = 0;
     }
 
     // set status text
