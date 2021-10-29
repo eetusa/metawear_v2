@@ -21,7 +21,7 @@ public class DataContainer {
     }
 
     public boolean isDataSending(int index){
-        return isDataSending(index);
+        return isDataSending.get(index);
     }
 
     public void markSendingData(int index, boolean value){
