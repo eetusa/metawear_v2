@@ -4,45 +4,28 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DataContainer {
-    private List<List<Float[]>> alldata;
-    private List<Boolean> isDataSending;
-    public int count;
+
+    public List<DataSet> DataSets;
 
     public DataContainer(){
-        this.alldata = new ArrayList<>();
-        this.count = 0;
-        this.isDataSending = new ArrayList<>();
+        DataSets = new ArrayList<>();
     }
 
-    public void addData(List<Float[]> data){
-        alldata.add(data);
-        count = alldata.size();
-        isDataSending.add(false);
+    public void addDataSet(DataSet dataSet){
+        DataSets.add(dataSet);
     }
 
-    public boolean isDataSending(int index){
-        return isDataSending.get(index);
-    }
-
-    public void markSendingData(int index, boolean value){
-        isDataSending.set(index, value);
-    }
-
-    public List<Float[]> getData(int index){
-        return alldata.get(index);
-    }
-
-    public boolean removeData(int index){
-        if (count > index){
-            alldata.remove(index);
-            isDataSending.remove(index);
-            count = alldata.size();
-            return true;
-        }
-        return false;
+    public void removeData(DataSet dataSet){
+        DataSets.remove(dataSet);
     }
 
     public boolean hasData(){
-        return alldata.size()>0;
+        return (DataSets.size() > 0);
     }
+
+    public int dataCount(){
+        return DataSets.size();
+    }
+
+
 }

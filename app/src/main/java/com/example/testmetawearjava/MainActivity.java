@@ -150,28 +150,26 @@ public class MainActivity extends Activity implements ServiceConnection {
         @Override
         public void run() {
 
-            for (int key : savedActivities.keySet()) {
-                if (savedActivities.get(key) == null){
-                    RequestDataByActivityId(key);
-                }
-            }
-
             if (dataContainer.hasData()){
-                Log.i("Network cycle","Data in store(count): " +dataContainer.count);
-                for (int i = 0; i < dataContainer.count; i++){
-                    if (dataContainer.isDataSending(i)==false){
-                        AttemptToSendData(i);
-                    }
 
+
+                for (DataSet dataSet : dataContainer.DataSets){
+                    if (dataSet.HasBeenSent && dataSet.getDataAnalysis() == null && !dataSet.IsDataAnalysisBeingRequested){
+                       RequestAnalysisByDataSet(dataSet);
+                      //  RequestDataOfDataSet(dataSet);
+                    }
+                    if (!dataSet.IsBeingSent){
+                        AttemptToPOSTData(dataSet);
+                    }
                 }
             }
 
-            // upd every 10 seconds
-            handler.postDelayed(runnableCode, 10000);
+            // upd every 3 seconds
+            handler.postDelayed(runnableCode, 3000);
         }
     };
 
-    void AttemptToSendData(int index){
+   /* void AttemptToSendData(int index){
 
         List<Float[]> data = dataContainer.getData(index);
         dataContainer.markSendingData(index, true);
@@ -211,13 +209,106 @@ public class MainActivity extends Activity implements ServiceConnection {
         queue.add(jsonObjectRequest);
     }
 
+    */
+
+    void AttemptToPOSTData(DataSet dataSet){
+
+        dataSet.IsBeingSent = true;
+        RequestQueue queue = Volley.newRequestQueue(this);
+        String base_url ="https://koikka.work/workFIT/api.php"; //post endpoint
+
+
+        JSONObject postData = dataSet.getPOSTData();
+
+        Log.i("Activity cycle","Attempting sending activity data of size: " + dataSet.accelerationData.size() + " with activity id: " + dataSet.getActivityId());
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.POST, base_url, postData,
+            response -> {
+                Log.i("Activity cycle", String.valueOf(response));
+                try {
+                    if(response.get("status").toString().equals("true") && response.get("msg").toString().equals("Data added")){
+                        //dataContainer.removeData(dataSet);
+                        dataSet.HasBeenSent = true;
+                        Log.i("Activity cycle", "Data received by backend");
+                    } else {
+                        dataSet.IsBeingSent = false;
+                    }
+
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
+
+            }, error -> {
+                error.printStackTrace();
+                dataSet.IsBeingSent = false;
+            });
+
+        jsonObjectRequest.setRetryPolicy(new DefaultRetryPolicy(15000, 0, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
+
+        queue.add(jsonObjectRequest);
+    }
+
+    void RequestDataOfDataSet(DataSet dataSet){
+        dataSet.IsDataAnalysisBeingRequested = true;
+        Log.i("Activity cycle","Requesting activity by id " + dataSet.getActivityId());
+        RequestQueue queue = Volley.newRequestQueue(this);
+        //String url = "https://koikka.work/workFIT/api.php?action=get_data&userId=" + userId + "&key=" +dataSet.getActivityId();
+        String url = "https://koikka.work/workFIT/api.php?action=get_data&userId=" + userId + "&key=" +"koira";
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                response -> {
+                    Log.i("Activity cycle","Received response");
+                    Log.i("Activity cycle", String.valueOf(response));
+                    Log.i("Activity cycle", dataSet.getPOSTData().toString());
+
+                   // dataSet.setDataAnalysis(response);
+
+                }, error -> {
+            if (error.getMessage() != null) Log.i("Response is: ", error.getMessage());
+            else {
+                Log.e("ResponseError", "no response");
+            }
+            dataSet.IsDataAnalysisBeingRequested = false;
+        });
+        jsonObjectRequest.setRetryPolicy(new DefaultRetryPolicy(15000, 0, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
+        queue.add(jsonObjectRequest);
+    }
+
+    void RequestAnalysisByDataSet(DataSet dataSet){
+        dataSet.IsDataAnalysisBeingRequested = true;
+        Log.i("Activity cycle","Requesting activity by id " + dataSet.getActivityId());
+        RequestQueue queue = Volley.newRequestQueue(this);
+       String url = "https://koikka.work/workFIT/api.php?action=get_status&userId=" + userId + "&key=" +dataSet.getActivityId();
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                response -> {
+                    Log.i("Activity cycle","Received response");
+                    Log.i("Activity cycle", String.valueOf(response));
+
+                    dataSet.setDataAnalysis(response);
+                    try {
+                        SetDataOnUi(dataSet.getDataAnalysis());
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+
+
+                }, error -> {
+            if (error.getMessage() != null) Log.i("Response is: ", error.getMessage());
+            else {
+                Log.e("ResponseError", "no response");
+            }
+            dataSet.IsDataAnalysisBeingRequested = false;
+        });
+
+        queue.add(jsonObjectRequest);
+    }
+
     void RequestDataByActivityId(int activityId) {
         // Instantiate the RequestQueue.
         Log.i("Activity cycle","Requesting activity by id " + activityId);
         RequestQueue queue = Volley.newRequestQueue(this);
-        String url = "http://koikka.work:5000/workFIT/get_status?userId=" + userId + "&key=" + activityId;
 
-        // Request a string response from the provided URL.
+        String url = "https://koikka.work/workFIT/api.php?action=get_status&userId=" + userId + "&key=" +activityId;
+/*
         StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
                 new Response.Listener<String>() {
                     @Override
@@ -246,7 +337,27 @@ public class MainActivity extends Activity implements ServiceConnection {
             }
         });
 
-        queue.add(stringRequest);
+ */
+
+        JsonObjectRequest jsonObjectRequest = new JsonObjectRequest(Request.Method.GET, url, null,
+                response -> {
+                    Log.i("Activity cycle","Received response");
+                    Log.i("Activity cycle", String.valueOf(response));
+                    try {
+                        SetDataOnUi(response);
+                        savedActivities.put(activityId, response);
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+
+                }, error -> {
+                    if (error.getMessage() != null) Log.i("Response is: ", error.getMessage());
+                    else {
+                        Log.e("ResponseError", "no response");
+                    }
+        });
+
+        queue.add(jsonObjectRequest);
 
     }
 
@@ -316,13 +427,17 @@ public class MainActivity extends Activity implements ServiceConnection {
         //TestCall();
         //GenerateRandomAccelerationData();
         Log.i("Activity cycle","Ending activity");
-        SendActivityData();
+        //SendActivityData();
         AddDataToSendQueue();
 
     }
 
     private void AddDataToSendQueue(){
-        dataContainer.addData(accelerationData);
+      //  dataContainer.addData(accelerationData);
+        Random rnd = new Random();
+        int activityId = 10000 + rnd.nextInt(90000);
+        dataContainer.addDataSet(new DataSet(accelerationData, activityId, userId));
+
         accelerationData = new ArrayList<>();
     }
 
@@ -408,11 +523,10 @@ public class MainActivity extends Activity implements ServiceConnection {
 
     private void printData(JSONObject obj){
         try {
-            JSONArray lol = obj.getJSONObject("data").getJSONArray("data");
-            for (int i = 0; i < lol.length(); i++){
+            JSONArray lol = obj.getJSONArray("data");
 
-                Log.i("testi",""+lol.get(i));
-            }
+                Log.i("testi",""+lol);
+
         } catch (JSONException e) {
             e.printStackTrace();
         }
